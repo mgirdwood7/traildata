@@ -2,8 +2,8 @@
 
 # KOOS
 # note koos_A6 question is missing - was not entered into smartabase
-
 koos <- renamevariables("koos") %>% # run rename variable function
+  select(!koos_total) %>% 
   mutate(across(c(koos_P1, koos_Q1, koos_PF2:koos_PF3), # recode factors to numeric values
             ~factor(.x, levels = c("Never", "Monthly", "Weekly", "Daily", "Always"), 
                    labels = c(0:4)))) %>%
@@ -32,15 +32,12 @@ koos <- renamevariables("koos") %>% # run rename variable function
   ungroup()
 
 # SPEX
-
-spex <- renamevariables(spex)
+spex <- renamevariables("spex")
 
 # ASSQ
-
-assq <- renamevariables(assq)
+assq <- renamevariables("assq")
 
 # Tampa
-
 tampa <- renamevariables("tampa") %>% 
   mutate(across(c(tsk_1:tsk_3, tsk_5:tsk_7, tsk_9:tsk_11, tsk_13:tsk_15, tsk_17), # recode factors to numeric values
                 ~factor(.x, levels = c("Strongly disagree", "Disagree", "Agree", "Strongly agree"), 
@@ -57,16 +54,13 @@ tampa <- renamevariables("tampa") %>%
   select(-tsk_total) # remove original total value from export which is incorrect (doesn't inverse 4, 8, 12, 16)
 
 # Pass
-
 pass <- renamevariables("pass")
 
 # Visa-a
-
 visaa <- renamevariables("visaa")
 
 # Trail baseline
 # need to remove full stop column manually.
-
 baselineq <- renamevariables("baselineq") %>%
   select(c(-remove, -Hidden_Shoes, -Hidden_Shoes_Type)) %>% # remove duplicated and blank variables
   mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
@@ -80,10 +74,37 @@ baselineq <- renamevariables("baselineq") %>%
 
 
 # phone Screening
-## need to remove days since surgery column as auto calculated
-## remove postcode due to double up in baseline questionnaire
-## remove sex, height, weight, group
-## remove finalmessage
-## remove contains('llsurgery')
+phonescreen <- renamevariables("phonescreen") %>%
+  select(c(-kneesurgery_days, -kneesurgery_years, -contains("llsurgery_"), -postcode, -sex, -group, -finalmessage,
+           -phonenumber, -email)) %>% # remove duplicated, identifying or empty variables
+  mutate(running_device = ifelse(running_device == "Other", running_device_other, running_device)) %>% # combine running_device into one variable
+  select(-running_device_other) # remove "other" variable as now combined.
+# need to handle multiple surgeries/injuries.
 
-# lab testing and biodex
+# lab testing
+lab <- renamevariables("lab") %>%
+  mutate(across(c(msi_weight_score, msi_stackheight_score, msi_heeltoedrop_score, msi_stability_score),
+                ~ifelse(is.na(.x), NA, str_sub(.x, 1,1)))) %>% # change score based msi variables to just the numeric value and not descriptor
+  mutate(across(c(r_medial_palp, l_medial_palp, r_lateral_palp, l_lateral_palp, r_standing_crepitus, l_standing_crepitus),
+                ~case_when(
+                  .x == "Negative" ~ 0, # change to numeric values
+                  .x == "Positive" ~ 1,
+                ))) %>%
+  group_by(UUID) %>% # need to remove duplicate incomplete entries 
+  arrange(desc(Date), .by_group = TRUE) %>% # descending date order
+  slice(1) %>% # take only the 1st instance (i.e. the latest entry)
+  ungroup()
+
+# extract baseline date
+baselinedates <- lab %>%
+  select(UUID, labtest_date, About) # get ids and labdates from labtest data
+
+# get all ids 
+trailid <- baselineq %>%
+  select(UUID, About) %>% # get all ids from baselineq data
+  distinct(UUID, .keep_all = TRUE)
+
+id <- left_join(trailid, baselinedates, by = c("UUID", "About")) # join together, NA for those not yet completed lab testing
+
+
+
