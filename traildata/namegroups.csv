@@ -146,8 +146,8 @@ indigenous,demographics
 education,demographics
 occupation,demographics
 employment,demographics
-oa_familyhx,
-oa_familyhx_location,
+oa_familyhx,demographics
+oa_familyhx_location,demographics
 other_wbsport,sport
 other_wbsport_type,sport
 other_wbsport_freq,sport
@@ -180,8 +180,8 @@ l_stiffness,symptoms
 r_stiffnes,symptoms
 l_crepitus,symptoms
 r_crepitus,symptoms
-xray_oa,
-mri_oa,
+xray_oa,koabeliefs
+mri_oa,koabeliefs
 koabeliefs_1,koabeliefs
 koabeliefs_2,koabeliefs
 koabeliefs_3,koabeliefs
@@ -195,7 +195,7 @@ koabeliefs_10,koabeliefs
 koabeliefs_11,koabeliefs
 koabeliefs_12,koabeliefs
 koabeliefs_13,koabeliefs
-knee_medication,misc
+knee_medication,demographics
 women_menarche,womens
 women_cycle_regular,womens
 women_cycle_disruption,womens
@@ -246,9 +246,9 @@ llinjury_osics,injhistory
 llinjury_moi,injhistory
 llinjury_grindem,injhistory
 llinjury_date,injhistory
-running_device,misc
-running_device_other,misc
-labtest_date,lab
+running_device,sport
+running_device_other,sport
+labtest_date,demographics
 sex,demographics
 dominantlimb,demographics
 group,demographics

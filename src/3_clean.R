@@ -1,5 +1,33 @@
 # Clean File
 
+# lab testing
+# This one first as has the lab testing date which is used to calculate/extract timepoint.
+lab <- renamevariables("lab") %>%
+  mutate(across(c(msi_weight_score, msi_stackheight_score, msi_heeltoedrop_score, msi_stability_score),
+                ~ifelse(is.na(.x), NA, str_sub(.x, 1,1)))) %>% # change score based msi variables to just the numeric value and not descriptor
+  mutate(across(c(r_medial_palp, l_medial_palp, r_lateral_palp, l_lateral_palp, r_standing_crepitus, l_standing_crepitus),
+                ~case_when(
+                  .x == "Negative" ~ 0, # change to numeric values
+                  .x == "Positive" ~ 1,
+                ))) %>%
+  group_by(UUID) %>% # need to remove duplicate incomplete entries 
+  arrange(desc(Date), .by_group = TRUE) %>% # descending date order
+  slice(1) %>% # take only the 1st instance (i.e. the latest entry)
+  ungroup()
+
+# extract baseline date
+baselinedates <- lab %>%
+  select(UUID, labtest_date, About) # get ids and labdates from labtest data
+# get all ids 
+trailid <- baselineq %>%
+  select(UUID, About) %>% # get all ids from baselineq data
+  distinct(UUID, .keep_all = TRUE)
+
+id <- left_join(trailid, baselinedates, by = c("UUID", "About")) # join together, NA for those not yet completed lab testing
+
+lab <- lab %>% select(!labtest_date) # remove labtest_date as will be joined from function.
+lab <- traildates("lab")
+
 # KOOS
 # note koos_A6 question is missing - was not entered into smartabase
 koos <- renamevariables("koos") %>% # run rename variable function
@@ -30,12 +58,15 @@ koos <- renamevariables("koos") %>% # run rename variable function
          koos_PF_total = 100 - (mean(c_across(koos_PF1:koos_PF11), na.rm = TRUE) * 100) / 4,
          koos_4_total = mean(c(koos_P_total, koos_S_total, koos_SP_total, koos_Q_total), na.rm = T)) %>% # koos 4 total = total of all subscales except A and PF
   ungroup()
+koos <- traildates("koos")
 
 # SPEX
 spex <- renamevariables("spex")
+spex <- traildates("spex")
 
 # ASSQ
-assq <- renamevariables("assq")
+assq <- renamevariables("assq") 
+assq <- traildates("assq")
 
 # Tampa
 tampa <- renamevariables("tampa") %>% 
@@ -52,12 +83,15 @@ tampa <- renamevariables("tampa") %>%
          tsk_total11 = sum(c_across(c(tsk_1:tsk_3, tsk_5:tsk_7, tsk_10, tsk_11, tsk_13, tsk_15, tsk_17)), na.rm = TRUE)) %>% # calc TSK 11 total
   ungroup() %>%
   select(-tsk_total) # remove original total value from export which is incorrect (doesn't inverse 4, 8, 12, 16)
+tampa <- traildates("tampa")
 
 # Pass
 pass <- renamevariables("pass")
+pass <- traildates("pass")
 
 # Visa-a
 visaa <- renamevariables("visaa")
+visaa <- traildates("visaa")
 
 # Trail baseline
 # need to remove full stop column manually.
@@ -71,7 +105,7 @@ baselineq <- renamevariables("baselineq") %>%
                   knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
                   shoe_type, shoe_factors, supports), # select the same variables again
                 na_if, "")) # if extracted string is blank label as NA
-
+baselineq <- traildates("baselineq")
 
 # phone Screening
 phonescreen <- renamevariables("phonescreen") %>%
@@ -79,32 +113,8 @@ phonescreen <- renamevariables("phonescreen") %>%
            -phonenumber, -email)) %>% # remove duplicated, identifying or empty variables
   mutate(running_device = ifelse(running_device == "Other", running_device_other, running_device)) %>% # combine running_device into one variable
   select(-running_device_other) # remove "other" variable as now combined.
+phonescreen <- traildates("phonescreen")
 # need to handle multiple surgeries/injuries.
 
-# lab testing
-lab <- renamevariables("lab") %>%
-  mutate(across(c(msi_weight_score, msi_stackheight_score, msi_heeltoedrop_score, msi_stability_score),
-                ~ifelse(is.na(.x), NA, str_sub(.x, 1,1)))) %>% # change score based msi variables to just the numeric value and not descriptor
-  mutate(across(c(r_medial_palp, l_medial_palp, r_lateral_palp, l_lateral_palp, r_standing_crepitus, l_standing_crepitus),
-                ~case_when(
-                  .x == "Negative" ~ 0, # change to numeric values
-                  .x == "Positive" ~ 1,
-                ))) %>%
-  group_by(UUID) %>% # need to remove duplicate incomplete entries 
-  arrange(desc(Date), .by_group = TRUE) %>% # descending date order
-  slice(1) %>% # take only the 1st instance (i.e. the latest entry)
-  ungroup()
-
-# extract baseline date
-baselinedates <- lab %>%
-  select(UUID, labtest_date, About) # get ids and labdates from labtest data
-
-# get all ids 
-trailid <- baselineq %>%
-  select(UUID, About) %>% # get all ids from baselineq data
-  distinct(UUID, .keep_all = TRUE)
-
-id <- left_join(trailid, baselinedates, by = c("UUID", "About")) # join together, NA for those not yet completed lab testing
-
-
-
+#need to get unique timpoint.
+test <- reduce(list(koos, spex, assq, tampa, pass, visaa, baselineq, phonescreen, lab), left_join, by = c("UUID", "timepoint", "Date"))
