@@ -10,23 +10,35 @@ lab <- renamevariables("lab") %>%
                   .x == "Negative" ~ 0, # change to numeric values
                   .x == "Positive" ~ 1,
                 ))) %>%
-  group_by(UUID) %>% # need to remove duplicate incomplete entries 
-  arrange(desc(Date), .by_group = TRUE) %>% # descending date order
-  slice(1) %>% # take only the 1st instance (i.e. the latest entry)
-  ungroup()
+  mutate(nacount = rowSums(is.na(.))) %>% # sum NA count to help with deciding which entry to keep below
+  group_by(UUID) %>% # need to remove duplicated data entries 
+  arrange(nacount, .by_group = TRUE) %>% # 
+  slice(1) %>% # take the instance with most complete data
+  ungroup() %>%
+  select(-nacount)
 
 # extract baseline date
 baselinedates <- lab %>%
-  select(UUID, labtest_date, About) # get ids and labdates from labtest data
+  select(UUID, labtest_date) # get ids and labdates from labtest data
 # get all ids 
 trailid <- baselineq %>%
-  select(UUID, About) %>% # get all ids from baselineq data
+  select(UUID, Date) %>% # get all ids from baselineq data
+  rename(studyentry_date = Date) %>%
   distinct(UUID, .keep_all = TRUE)
 
-id <- left_join(trailid, baselinedates, by = c("UUID", "About")) # join together, NA for those not yet completed lab testing
+# create id dataframe with baseline date.
+id <- left_join(trailid, baselinedates, by = c("UUID")) # join together, NA for those not yet completed lab testing
 
-lab <- lab %>% select(!labtest_date) # remove labtest_date as will be joined from function.
-lab <- traildates("lab")
+# create demographic info dataframe
+demo <- lab %>%
+  select(UUID, knee_reference, height, weight, dominantlimb) %>%
+  left_join(dob %>% select(UUID, dob, sex, group, age), ., by = "UUID") %>%
+  left_join(id, ., by = "UUID") %>%
+  mutate(age = trunc((dob %--% studyentry_date) / years(1))) # recalcualte age field from study entry date
+
+lab <- lab %>% select(!c(labtest_date, sex, group, knee_reference, height, weight, dominantlimb)) # remove variables saved separately in demographic df.
+lab <- traildates("lab") 
+
 
 # KOOS
 # note koos_A6 question is missing - was not entered into smartabase
@@ -90,7 +102,53 @@ pass <- renamevariables("pass")
 pass <- traildates("pass")
 
 # Visa-a
-visaa <- renamevariables("visaa")
+visaa <- renamevariables("visaa") %>%
+  mutate(visaa_1 = case_when(
+    visaa_1 == "0 mins" ~ 10,
+    visaa_1 == "10 mins" ~ 9,
+    visaa_1 == "20 mins" ~ 8,
+    visaa_1 == "30mins" ~ 7, # note the typo here
+    visaa_1 == "40 mins" ~ 6,
+    visaa_1 == "50 mins" ~ 5,
+    visaa_1 == "60 mins" ~ 4,
+    visaa_1 == "70 mins" ~ 3,
+    visaa_1 == "80 mins" ~ 2,
+    visaa_1 == "90 mins" ~ 1,
+    visaa_1 == "100 mins" ~ 0,
+  )) %>%
+  mutate(across(c(visaa_2, visaa_3, visaa_4, visaa_5),
+                ~case_when(
+                  .x == "No pain" ~ 10,
+                  .x == "Strong severe pain" ~ 0,
+                  .x != "No pain|Strong severe pain" ~ as.numeric(.x)
+                )))  %>%
+  mutate(visaa_7 = case_when(
+    visaa_7 == "Not at all" ~ 0,
+    visaa_7 == "Modified training Â± modified competition" ~ 4, 
+    visaa_7 == "Full training Â± competition but not at same level as when symptoms began" ~ 7,
+    visaa_7 == "Competing at the same or higher level as when Symptoms began" ~ 10
+  )) %>%
+  mutate(visaa_8a = case_when(
+    visaa_8a == ">30 mins" ~ 30,
+    visaa_8a == "21-30 mins" ~ 21,
+    visaa_8a == "11-20 mins" ~ 14,
+    visaa_8a == "1-10 mins" ~ 7,
+    visaa_8a == "NIL" ~ 0
+  )) %>%
+  mutate(visaa_8b = case_when(
+    visaa_8b == ">30 mins" ~ 20,
+    visaa_8b == "21-30 mins" ~ 14,
+    visaa_8b == "11-20 mins" ~ 10,
+    visaa_8b == "1-10 mins" ~ 4,
+    visaa_8b == "NIL" ~ 0
+  )) %>%
+  mutate(visaa_8c = case_when(
+    visaa_8c == ">30 mins" ~ 10,
+    visaa_8c == "21-30 mins" ~ 7,
+    visaa_8c == "11-20 mins" ~ 5,
+    visaa_8c == "1-10 mins" ~ 2,
+    visaa_8c == "NIL" ~ 0
+  )) 
 visaa <- traildates("visaa")
 
 # Trail baseline
@@ -104,17 +162,73 @@ baselineq <- renamevariables("baselineq") %>%
   mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
                   knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
                   shoe_type, shoe_factors, supports), # select the same variables again
-                na_if, "")) # if extracted string is blank label as NA
+                na_if, "")) %>% # if extracted string is blank label as NA
+  mutate(across(c(l_swelling, r_swelling, l_stiffness, r_stiffness, l_crepitus, r_crepitus, xray_oa, mri_oa),
+                ~case_when(
+                  .x == "No" ~ 0, # change to numeric values
+                  .x == "Yes" ~ 1,
+                ))) %>%
+  mutate(kneepain_running = ifelse(kneepain_running == "0 - No Pain", 0, kneepain_running)) %>% # change 0 value to numeric
+  select(!c(sex, height, weight)) # remove duplicate variables from other questionnaires.
 baselineq <- traildates("baselineq")
 
-# phone Screening
+# phone Screening / Injury Data - Will sit as separate data frame
 phonescreen <- renamevariables("phonescreen") %>%
   select(c(-kneesurgery_days, -kneesurgery_years, -contains("llsurgery_"), -postcode, -sex, -group, -finalmessage,
            -phonenumber, -email)) %>% # remove duplicated, identifying or empty variables
   mutate(running_device = ifelse(running_device == "Other", running_device_other, running_device)) %>% # combine running_device into one variable
-  select(-running_device_other) # remove "other" variable as now combined.
-phonescreen <- traildates("phonescreen")
-# need to handle multiple surgeries/injuries.
+  select(-running_device_other) %>% # remove "other" variable as now combined.
+  select(Date, UUID, contains("kneesurgery"), contains("llsurgery"), contains("kneeinjury"), otherinjury_hx, contains("llinjury"))
+
+# Separate data frames out into each type of info - knee surgery, knee injury, llinjury
+kneesurgery <- phonescreen %>%
+  select(Date, UUID, starts_with("kneesurgery")) %>%
+  rename_at(vars(starts_with("kneesurgery")),
+            ~str_replace(., "kneesurgery_", "")) %>%
+  mutate(variable = "Knee Sugery")
+
+kneeinjury <- phonescreen %>%
+  select(Date, UUID, starts_with("kneeinjury")) %>%
+  rename_at(vars(starts_with("kneeinjury")),
+            ~str_replace(., "kneeinjury_", "")) %>%
+  mutate(variable = "Knee Injury")
+
+llinjury <- phonescreen %>%
+  select(Date, UUID, starts_with("llinjury")) %>%
+  rename_at(vars(starts_with("llinjury")),
+            ~str_replace(., "llinjury_", "")) %>%
+  mutate(variable = "Lower Limb Injury")
+
+# join together individual dataframes as long form
+injuryinfo <- bind_rows(kneesurgery, kneeinjury) %>%
+  bind_rows(., llinjury) %>%
+  rename(injurydate = date) %>% # so as not to confuse with Date of collection
+  mutate(timepoint = "TP1", 
+         grindem = str_extract(grindem, "\\d"), # extract numeric grindem level
+         osics_code = str_extract(osics, "[:upper:]{4}")) %>% # extract 4 letter osics code
+  select(UUID, -Date, timepoint, variable, everything()) %>%
+  filter(!is.na(id), 
+         !is.na(injurydate)) %>% # remove empty lines
+  arrange(UUID, id)
 
 #need to get unique timpoint.
-test <- reduce(list(koos, spex, assq, tampa, pass, visaa, baselineq, phonescreen, lab), left_join, by = c("UUID", "timepoint", "Date"))
+traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, baselineq, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
+  left_join(demo, ., by = c("UUID", "labtest_date", "studyentry_date")) %>%
+  rename(timepoint_date = Date.x, 
+         id = UUID) %>% # better names
+  select(!contains("Date.")) %>%
+  filter(!timepoint %in% c("TP2", "TP3", "TP4", "TP5", "TP6")) %>% # remove timepoints after study entry but before lab test (not needed).
+  arrange(id)
+
+# Write to csv
+#- write_csv(traildatabase, "data/processed/Trail Database v1 090322.csv")
+#- wriet_csv(injuryinfo, "data/processed/Trail Injury History v1 090322.csv")
+
+# Export
+sheets <- list("Database" = traildatabase, "Injury History" = injuryinfo) # list of different excel sheets
+write.xlsx(sheets, "data/processed/Trail Data.xlsx", keepNA = TRUE, na.string = "NA") # write to xlsx file with 2 sheets.
+
+# need to look at training load - summary data
+
+# change names - Date to timepointdate?
+# UUID to id?

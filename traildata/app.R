@@ -43,7 +43,8 @@ ui <- fluidPage(
                                                                 "6 months" = "T06", 
                                                                 "12 months" = "T12", 
                                                                 "18 months" = "T18",
-                                                                "24 months" = "T24"))
+                                                                "24 months" = "T24"),
+                                  selected = "T00")
         ),
         column(2, 
                h4("Select PROMs"),
@@ -75,11 +76,14 @@ ui <- fluidPage(
                                                                     "Shoe informaiton" = "shoe",
                                                                     "Minimalist Shoe Index" = "msi",
                                                                     "Injury History" = "injhistory"),
-                                  selected = "demographics"
-               )
+                                  selected = "demographics")
         ),
-        
-
+        column(2,
+               h4("Select Groups"),
+               checkboxGroupInput("group", "Groups", choices = c("Surgical" = "Surgical",
+                                                                       "Control" = "Control"),
+                                  selected = "Surgical")
+        ),
     ),
     sidebarLayout(
         sidebarPanel(style = "background-color:#ffeae8;",
@@ -112,6 +116,7 @@ server <- function(input, output) {
     dataout <- reactive({
         data() %>%
             dplyr::filter(timepoint %in% input$timepoints) %>%
+            dplyr::filter(group %in% input$group)
             dplyr::select(UUID, Date, timepoint, any_of(namesout()$varname))
         
     })
@@ -121,7 +126,7 @@ server <- function(input, output) {
     })
     
     output$downloadData <- downloadHandler(
-        filename=("trailtest.csv"),
+        filename=(paste("Trail Data", Sys.Date(), ".csv")),
         content=function(file){
             write_csv(dataout(), file)
         }

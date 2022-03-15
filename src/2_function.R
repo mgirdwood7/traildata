@@ -9,7 +9,7 @@ renamevariables <- function(data) {
     rename_with(~name$codename, name$question) %>% # replace all var names
     rename_at(vars(ends_with("?")), # remove any question marks not matched
               ~str_replace(., "\\?", "")) %>%
-    select(-matches("HIDDEN|Index", ignore.case = FALSE)) # remove unneeded variables
+    select(-matches("HIDDEN|Index|About|by", ignore.case = FALSE)) # remove unneeded variables
 
 }  
 
@@ -38,6 +38,10 @@ traildates <- function(data) {
     mutate(timepoint = case_when(
       timepoint == "TP" ~ paste0(timepoint, row_number()), # for anyone with multiple pre-baseline timepoints, name by sequence.
       timepoint != "TP" ~ timepoint)) %>% # no change to regular timepoints
+    ungroup() %>%
+    group_by(UUID) %>% # now to get unique timepoint for each person (i.e. remove accidental duplicates completed by participant)
+    arrange(timepoint, Date) %>%
+    distinct(timepoint, .keep_all = TRUE) %>%
     ungroup() %>%
     select(UUID, timepoint, Date, everything()) %>% 
     arrange(UUID, timepoint)
