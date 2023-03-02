@@ -5,7 +5,7 @@
 # Patient Data files
 /data/processed/*.csv
 /data/processed/*.xlsx
-/data/processed/
+/data/processed/*
 
 
 # Session Data files
