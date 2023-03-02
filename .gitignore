@@ -5,8 +5,7 @@
 # Patient Data files
 /data/processed/*.csv
 /data/processed/*.xlsx
-/data/processed/training_load/*.csv
-/data/processed/training_load/event_data/*.csv
+/data/processed/
 
 
 # Session Data files
