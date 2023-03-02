@@ -5,9 +5,9 @@ account: mgirdwood
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5809398
-bundleId: 5658451
+bundleId: 6377611
 url: https://mgirdwood.shinyapps.io/traildata/
-when: 1646778908.00869
-lastSyncTime: 1646778908.00871
+when: 1665098415.69594
+lastSyncTime: 1665098415.69597
 asMultiple: FALSE
 asStatic: FALSE

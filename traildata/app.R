@@ -9,9 +9,10 @@
 
 library(shiny)
 library(tidyverse)
+library(readxl)
 
 
-# Define UI for application that draws a histogram
+
 ui <- fluidPage(
     tags$head(HTML("<title>Trail Data Selector</title>")),
 
@@ -28,13 +29,10 @@ ui <- fluidPage(
 
     fluidRow(
         column(2, 
-               h4("Choose CSV File"),
+               h4("Choose XLSX File"),
                HTML("<em>Please make sure you use the most up-to-date version of the data.</em>"),
                fileInput("file1", "",
-                         multiple = FALSE,
-                         accept = c("text/csv",
-                                    "text/comma-separated-values,text/plain",
-                                    ".csv"))
+                         multiple = FALSE)
                ),
         column(2,
                h4("Select Timepoints"),
@@ -75,37 +73,51 @@ ui <- fluidPage(
                                                                     "Women's Factors" = "womens",
                                                                     "Shoe informaiton" = "shoe",
                                                                     "Minimalist Shoe Index" = "msi",
-                                                                    "Injury History" = "injhistory"),
-                                  selected = "demographics")
+                                                                    "Injury History" = "injhistory",
+                                                                    "Monthly Pain Data" = "monthlypain"
+                                                                    ))
         ),
         column(2,
                h4("Select Groups"),
-               checkboxGroupInput("group", "Groups", choices = c("Surgical" = "Surgical",
+               checkboxGroupInput("group", "Groups", choices = c("Surgical" = "Surgery",
                                                                        "Control" = "Control"),
-                                  selected = "Surgical")
+                                  selected = c("Surgery", "Control"))
         ),
     ),
     sidebarLayout(
         sidebarPanel(style = "background-color:#ffeae8;",
         h4("Download File"),
-               downloadButton("downloadData","Download")
+               downloadButton("zipdownload","Download")
         ),
         mainPanel()
     )
     # Sidebar with a slider input for number of bins 
 )
 
-# Define server logic required to draw a histogram
+# Define server 
 server <- function(input, output) {
     
     varnamegroup <- read.csv("namegroups.csv", header = TRUE, na = "")
     
-    data <- reactive({
+    data <-  reactive({
         req(input$file1) # wait until file uploaded
         
-        read.csv(input$file1$datapath, 
-                     header = TRUE, 
-                     na = NA)
+        readxl::read_xlsx(input$file1$datapath, 
+                          sheet = 1, na = "NA")
+    })
+    
+    injury <-  reactive({
+        req(input$file1) # wait until file uploaded
+        
+        readxl::read_xlsx(input$file1$datapath, 
+                          sheet = 2, na = "NA")
+    })
+    
+    monthlypain <-  reactive({
+        req(input$file1) # wait until file uploaded
+        
+        readxl::read_xlsx(input$file1$datapath, 
+                          sheet = 3, na = "NA")
     })
     
     namesout <- reactive({
@@ -116,20 +128,59 @@ server <- function(input, output) {
     dataout <- reactive({
         data() %>%
             dplyr::filter(timepoint %in% input$timepoints) %>%
-            dplyr::filter(group %in% input$group)
-            dplyr::select(UUID, Date, timepoint, any_of(namesout()$varname))
+            dplyr::filter(group %in% input$group) %>%
+            dplyr::select(id, studyentry_date, labtest_date, dob, sex, group, surgerytype, date_surgerytype, age, knee_reference, dominantlimb, 
+                          timepoint, timepoint_date, any_of(namesout()$varname))
         
     })
     
-    output$head <- renderTable({
-        head(data())
+    injuryout <- reactive({
+        injury() %>%
+            dplyr::filter(group %in% input$group)
     })
     
-    output$downloadData <- downloadHandler(
-        filename=(paste("Trail Data", Sys.Date(), ".csv")),
-        content=function(file){
-            write_csv(dataout(), file)
-        }
+    monthlypainout <- reactive({
+        monthlypain() %>%
+            dplyr::filter(group %in% input$group)
+    })
+    
+    # Add Data file if Data are selected in menu
+    file1 <- reactive({
+        if(length(input$proms) > 0 | length(input$physical) > 0 | length(input$other) > 0) { c(paste(paste("Trail Data", Sys.Date(), sep = "_"), "csv", sep = ".")) }
+    })
+    
+    # Add Injury testing file if selected in menu
+    
+    file2 <- reactive({
+        ifelse(match("injhistory", input$other), c(paste(paste("Injury Information", Sys.Date(), sep = "_"), "csv", sep = ".")), c())
+    })
+    
+    file3 <- reactive({
+        ifelse(match("monthlypain", input$other), c(paste(paste("Monthly Pain", Sys.Date(), sep = "_"), "csv", sep = ".")), c())
+    })
+    
+    # Create list of which files to download
+    files <- reactive({
+        c(file1(), file2(), file3())
+    })
+    
+    output$zipdownload = downloadHandler(
+        filename = paste(paste("Trail Data", Sys.Date(), sep = "_"), "zip", sep = "."),
+        content = function( file){
+            
+            # Set temporary working directory
+            owd <- setwd( tempdir())
+            on.exit( setwd( owd))
+            
+            # Save the files 
+            write_csv(dataout(), paste(paste("Trail Data", Sys.Date(), sep = "_"), "csv", sep = "."))
+            write_csv(injuryout(), paste(paste("Injury Information", Sys.Date(), sep = "_"), "csv", sep = "."))
+            write_csv(monthlypainout(), paste(paste("Monthly Pain", Sys.Date(), sep = "_"), "csv", sep = "."))
+            
+            # Zip them up
+            zip(file, files())
+        },
+        contentType = "application/zip"
     )
 
 }

@@ -137,7 +137,6 @@ visaa_8a,visaa
 visaa_8b,visaa
 visaa_8c,visaa
 visaa_total,visaa
-sex,demographics
 height,demographics
 weight,demographics
 birthcountry,demographics
@@ -177,7 +176,7 @@ kneepain_running,symptoms
 l_swelling,symptoms
 r_swelling,symptoms
 l_stiffness,symptoms
-r_stiffnes,symptoms
+r_stiffness,symptoms
 l_crepitus,symptoms
 r_crepitus,symptoms
 xray_oa,koabeliefs
@@ -211,7 +210,7 @@ shoe_cushion,shoe
 shoe_factors,shoe
 watchfreq,shoe
 supports,shoe
-age,demographics
+age,id
 trailcriteria_1,
 trailcriteria_2,
 address,
@@ -248,11 +247,13 @@ llinjury_grindem,injhistory
 llinjury_date,injhistory
 running_device,sport
 running_device_other,sport
-labtest_date,demographics
-sex,demographics
-dominantlimb,demographics
-group,demographics
-knee_reference,demographics
+labtest_date,id
+sex,id
+dominantlimb,id
+group,id
+knee_reference,id
+surgerytype,id
+date_surgerytype,id
 height,anthro
 weight,anthro
 waist,anthro

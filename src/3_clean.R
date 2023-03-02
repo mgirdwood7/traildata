@@ -3,6 +3,7 @@
 # lab testing
 # This one first as has the lab testing date which is used to calculate/extract timepoint.
 lab <- renamevariables("lab") %>%
+  mutate(UUID = str_pad(UUID, width = 3, side = "left", pad = 0)) %>% # need to pad out id names to a character string to match other forms
   mutate(across(c(msi_weight_score, msi_stackheight_score, msi_heeltoedrop_score, msi_stability_score),
                 ~ifelse(is.na(.x), NA, str_sub(.x, 1,1)))) %>% # change score based msi variables to just the numeric value and not descriptor
   mutate(across(c(r_medial_palp, l_medial_palp, r_lateral_palp, l_lateral_palp, r_standing_crepitus, l_standing_crepitus),
@@ -17,13 +18,29 @@ lab <- renamevariables("lab") %>%
   ungroup() %>%
   select(-nacount)
 
+# get dob, sex and group from phonescreen form 
+dob <- phonescreen %>%
+  filter(Eligibility != "Ineligible") %>%
+  select(`Research Participant Number`, `Date of Birth`, Eligibility, Sex, Age) %>%
+  rename(UUID = `Research Participant Number`,
+         dob = `Date of Birth`, 
+         sex = Sex,
+         group = Eligibility,
+         age = Age) %>%
+  distinct(UUID, .keep_all = TRUE) %>% 
+  filter(!is.na(UUID))
+
 # extract baseline date
 baselinedates <- lab %>%
-  select(UUID, labtest_date) # get ids and labdates from labtest data
+  select(UUID, labtest_date) %>% # get ids and labdates from labtest data
+  mutate(labtest_date = dmy(labtest_date),
+         UUID = str_pad(UUID, width = 3, side = "left", pad = 0))
 # get all ids 
 trailid <- baselineq %>%
-  select(UUID, Date) %>% # get all ids from baselineq data
-  rename(studyentry_date = Date) %>%
+  select(UUID, start_date) %>% # get all ids from baselineq data
+  rename(studyentry_date = start_date) %>%
+  mutate(studyentry_date = dmy(studyentry_date),
+         UUID = str_pad(UUID, width = 3, side = "left", pad = 0)) %>%
   distinct(UUID, .keep_all = TRUE)
 
 # create id dataframe with baseline date.
@@ -34,41 +51,50 @@ demo <- lab %>%
   select(UUID, knee_reference, height, weight, dominantlimb) %>%
   left_join(dob %>% select(UUID, dob, sex, group, age), ., by = "UUID") %>%
   left_join(id, ., by = "UUID") %>%
-  mutate(age = trunc((dob %--% studyentry_date) / years(1))) # recalcualte age field from study entry date
+  mutate(dob = dmy(dob),
+         age = trunc((dob %--% studyentry_date) / years(1))) # recalcualte age field from study entry date
 
 lab <- lab %>% select(!c(labtest_date, sex, group, knee_reference, height, weight, dominantlimb)) # remove variables saved separately in demographic df.
 lab <- traildates("lab") 
 
 
 # KOOS
-# note koos_A6 question is missing - was not entered into smartabase
+# note koos_A6 question is missing - was not entered into smartabase initially
 koos <- renamevariables("koos") %>% # run rename variable function
   select(!koos_total) %>% 
-  mutate(across(c(koos_P1, koos_Q1, koos_PF2:koos_PF3), # recode factors to numeric values
+  select(Date, UUID, koos_p1, koos_p2, koos_p3, koos_p4, koos_p5, koos_p6, koos_p7, koos_p8, koos_p9, # order data per questionnaire, as fusion has jumbled
+         koos_s1, koos_s2, koos_s3, koos_s4, koos_s5, koos_s6, koos_s7,
+         koos_a1, koos_a2, koos_a3, koos_a4, koos_a5, koos_a6, koos_a7, koos_a8, koos_a9, koos_a10,
+         koos_a11, koos_a12, koos_a13, koos_a14, koos_a15, koos_a16, koos_a17,
+         koos_sp1, koos_sp2, koos_sp3, koos_sp4, koos_sp5,
+         koos_q1, koos_q2, koos_q3, koos_q4, 
+         koos_pf1, koos_pf2, koos_pf3, koos_pf4, koos_pf5, koos_pf6, koos_pf7, koos_pf8, koos_pf9, koos_pf10, koos_pf11, 
+         contains("total")) %>%
+  mutate(across(c(koos_p1, koos_q1, koos_pf2, koos_pf3), # recode factors to numeric values
             ~factor(.x, levels = c("Never", "Monthly", "Weekly", "Daily", "Always"), 
                    labels = c(0:4)))) %>%
-  mutate(across(c(koos_P2:koos_P9, koos_S1:koos_S2, koos_A1:koos_A17, koos_SP1:koos_SP5, koos_Q4, koos_PF1, koos_PF4:koos_PF10), 
+  mutate(across(c(koos_p2:koos_p9, koos_s1:koos_s2, koos_a1:koos_a17, koos_sp1:koos_sp5, koos_q4, koos_pf1, koos_pf4:koos_pf10), 
                 ~factor(.x, levels = c("None", "Mild", "Moderate", "Severe", "Extreme"), 
                         labels = c(0:4)))) %>%
-  mutate(across(c(koos_S3:koos_S5), 
+  mutate(across(c(koos_s3, koos_s4, koos_s5), 
                 ~factor(.x, levels = c("Never", "Rarely", "Sometimes", "Often", "Always"), 
                         labels = c(0:4)))) %>%
-  mutate(across(c(koos_S6:koos_S7), 
+  mutate(across(c(koos_s6, koos_s7), 
                 ~factor(.x, levels = c("Always", "Often", "Sometimes", "Rarely", "Never"), 
                         labels = c(0:4)))) %>%
-  mutate(across(c(koos_Q2:koos_Q3, koos_PF11), 
+  mutate(across(c(koos_q2, koos_q3, koos_pf11), 
                 ~factor(.x, levels = c("Not at all", "Mildly", "Moderately", "Severely", "Totally"), 
                         labels = c(0:4)))) %>%
-  mutate(across(c(koos_P1:koos_P9, koos_S1:koos_S7, koos_A1:koos_A17, koos_SP1:koos_SP5, koos_Q1:koos_Q4, koos_PF1:koos_PF11), 
+  mutate(across(c(koos_p1:koos_p9, koos_s1:koos_s7, koos_a1:koos_a17, koos_sp1:koos_sp5, koos_q1:koos_q4, koos_pf1:koos_pf11), 
                 ~as.numeric(as.character(.x)))) %>% # convert factors to numeric for calculation of totals
   rowwise() %>% # to calculate totals per participant
-  mutate(koos_P_total = 100 - (mean(c_across(koos_P1:koos_P9), na.rm = TRUE) * 100) / 4, # formula for calculating koos subscale totals
-         koos_S_total = 100 - (mean(c_across(koos_S1:koos_S7), na.rm = TRUE) * 100) / 4,
-         koos_A_total = 100 - (mean(c_across(koos_A1:koos_A17), na.rm = TRUE) * 100) / 4,
-         koos_SP_total = 100 - (mean(c_across(koos_SP1:koos_SP5), na.rm = TRUE) * 100) /4,
-         koos_Q_total = 100 - (mean(c_across(koos_Q1:koos_Q4), na.rm = TRUE) * 100) / 4,
-         koos_PF_total = 100 - (mean(c_across(koos_PF1:koos_PF11), na.rm = TRUE) * 100) / 4,
-         koos_4_total = mean(c(koos_P_total, koos_S_total, koos_SP_total, koos_Q_total), na.rm = T)) %>% # koos 4 total = total of all subscales except A and PF
+  mutate(koos_p_total = 100 - (mean(c_across(koos_p1:koos_p9), na.rm = TRUE) * 100) / 4, # formula for calculating koos subscale totals
+         koos_s_total = 100 - (mean(c_across(koos_s1:koos_s7), na.rm = TRUE) * 100) / 4,
+         koos_a_total = 100 - (mean(c_across(koos_a1:koos_a17), na.rm = TRUE) * 100) / 4,
+         koos_sp_total = 100 - (mean(c_across(koos_sp1:koos_sp5), na.rm = TRUE) * 100) /4,
+         koos_q_total = 100 - (mean(c_across(koos_q1:koos_q4), na.rm = TRUE) * 100) / 4,
+         koos_pf_total = 100 - (mean(c_across(koos_pf1:koos_pf11), na.rm = TRUE) * 100) / 4,
+         koos_4_total = mean(c(koos_p_total, koos_s_total, koos_sp_total, koos_q_total), na.rm = T)) %>% # koos 4 total = total of all subscales except A and PF
   ungroup()
 koos <- traildates("koos")
 
@@ -101,6 +127,10 @@ tampa <- traildates("tampa")
 pass <- renamevariables("pass")
 pass <- traildates("pass")
 
+# K-SES
+kses <- renamevariables("kses")
+kses <- traildates("kses")
+
 # Visa-a
 visaa <- renamevariables("visaa") %>%
   mutate(visaa_1 = case_when(
@@ -120,13 +150,14 @@ visaa <- renamevariables("visaa") %>%
                 ~case_when(
                   .x == "No pain" ~ 10,
                   .x == "Strong severe pain" ~ 0,
-                  .x != "No pain|Strong severe pain" ~ as.numeric(.x)
+                  TRUE ~ as.numeric(.x)
                 )))  %>%
   mutate(visaa_7 = case_when(
     visaa_7 == "Not at all" ~ 0,
-    visaa_7 == "Modified training Â± modified competition" ~ 4, 
-    visaa_7 == "Full training Â± competition but not at same level as when symptoms began" ~ 7,
-    visaa_7 == "Competing at the same or higher level as when Symptoms began" ~ 10
+    visaa_7 == "Modified training ± modified competition" ~ 4, 
+    visaa_7 == "Full training ± competition but not at same level as when symptoms began" ~ 7,
+    visaa_7 == "Competing at the same or higher level as when Symptoms began" ~ 10,
+    is.na(visaa_7) ~ NA_real_
   )) %>%
   mutate(visaa_8a = case_when(
     visaa_8a == ">30 mins" ~ 30,
@@ -152,13 +183,12 @@ visaa <- renamevariables("visaa") %>%
 visaa <- traildates("visaa")
 
 # Trail baseline
-# need to remove full stop column manually.
 baselineq <- renamevariables("baselineq") %>%
-  select(c(-remove, -Hidden_Shoes, -Hidden_Shoes_Type)) %>% # remove duplicated and blank variables
+  select(c(-Hidden_Shoes, -Hidden_Shoes_Type)) %>% # remove duplicated and blank variables
   mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
                   knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
                   shoe_type, shoe_factors, supports), # select variables which are bracketed by "[]"
-                ~str_extract(., "(?<=\\[).*(?=\\])"))) %>% # extract string from within the brackets
+                ~str_extract(.x, "(?<=\\[).*(?=\\])"))) %>% # extract string from within the brackets
   mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
                   knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
                   shoe_type, shoe_factors, supports), # select the same variables again
@@ -173,6 +203,11 @@ baselineq <- renamevariables("baselineq") %>%
 baselineq <- traildates("baselineq")
 
 # phone Screening / Injury Data - Will sit as separate data frame
+phonescreen <- phonescreen %>%
+  group_by(user_id, start_date) %>%
+  fill(`Research Participant Number`, .direction = "down") %>%
+  ungroup()
+
 phonescreen <- renamevariables("phonescreen") %>%
   select(c(-kneesurgery_days, -kneesurgery_years, -contains("llsurgery_"), -postcode, -sex, -group, -finalmessage,
            -phonenumber, -email)) %>% # remove duplicated, identifying or empty variables
@@ -185,7 +220,7 @@ kneesurgery <- phonescreen %>%
   select(Date, UUID, starts_with("kneesurgery")) %>%
   rename_at(vars(starts_with("kneesurgery")),
             ~str_replace(., "kneesurgery_", "")) %>%
-  mutate(variable = "Knee Sugery")
+  mutate(variable = "Knee Surgery")
 
 kneeinjury <- phonescreen %>%
   select(Date, UUID, starts_with("kneeinjury")) %>%
@@ -209,26 +244,157 @@ injuryinfo <- bind_rows(kneesurgery, kneeinjury) %>%
   select(UUID, -Date, timepoint, variable, everything()) %>%
   filter(!is.na(id), 
          !is.na(injurydate)) %>% # remove empty lines
-  arrange(UUID, id)
+  left_join(., dob %>% select(UUID, group), by = "UUID") %>%
+  rename(injury_id = id, 
+         id = UUID) %>% # more intuative names
+  select(id, group, everything()) %>%
+  arrange(id, variable, injury_id) %>%
+  filter(!id %in% c("4444", "88818", "0006"), 
+         !is.na(id))
 
-#need to get unique timpoint.
-traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, baselineq, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
+
+# Clean injury data to get type of surgery, and date of surgery
+# Need to define based ont type of surgery first, as may have had subsequent surgeries etc
+# Split groups based on - ACLR, Meniscus or other
+
+injuryclean <- injuryinfo %>%
+  filter(variable %in% c("Knee Surgery", "Knee Injury")) %>% # discard all llinjury ifnormaiotn
+  mutate(aclr = case_when(
+    osics_code == "YKLA" ~ 1, # ACL reconstructive surgery code
+    TRUE ~ NA_real_),
+    aclrinjury = case_when(
+      osics_code %in% c("KJAX","KJAG", "KJAR", "KJAC", "KJBX") ~ 1, # ACL injury codes
+      TRUE ~ NA_real_
+    )) %>%
+  group_by(id) %>% # use fill to add above values to all rows per participan
+  fill(aclr, .direction = "downup") %>%
+  fill(aclrinjury, .direction = "downup") %>%
+  ungroup() %>%
+  mutate(aclr = case_when(# now need to check that if had 'reconstructive surgery'  that it related to ACL (and not patellar dislocation e.g.)
+    aclr == 1 ~ 1, 
+    aclrinjury == 1 & osics_code == "YKLX" ~ 1, # "YKLX = "Knee reconstruction' code (not specific to what)
+    TRUE ~ NA_real_
+  ),
+  meniscal = case_when(
+    osics_code %in% c("YKCR", "YKCM", "YKCX") ~ 1,
+    TRUE ~ NA_real_)) %>%
+  group_by(id) %>% # now fill down and up again 
+  fill(aclr, .direction = "downup") %>%
+  fill(aclrinjury, .direction = "downup") %>%
+  fill(meniscal, .direction = "downup") %>%
+  ungroup() %>%
+  mutate(surgerytype = case_when(
+    aclr == 1 ~ "ACLR",
+    meniscal == 1 ~ "Meniscal",
+    group == "Control" ~ NA_character_,
+    TRUE ~ "Other"
+  )) %>%
+  select(!c(aclrinjury, aclr, meniscal))
+
+# ACLR subgroup
+aclsx <- injuryclean %>%
+  mutate(injurydate = dmy(injurydate)) %>%
+  filter(group == "Surgery",
+         surgerytype == "ACLR", # select those with an ACLR
+         variable == "Knee Surgery",
+         osics_code %in% c("YKLA", "YKLX")) %>% # select only the row with ACLR data 
+  group_by(id) %>%
+  arrange(desc(injurydate), .by_group = TRUE) %>%
+  slice(1) %>% # take the most recent surgery of this type (e.g. if had multiple ACLR, take most recent)
+  ungroup() %>%
+  mutate(date_surgerytype = injurydate) %>%
+  select(id, surgerytype, date_surgerytype)
+
+# Meniscal subgroup
+meniscalsx <- injuryclean %>%
+  mutate(injurydate = dmy(injurydate)) %>%
+  filter(group == "Surgery",
+         surgerytype == "Meniscal",
+         variable == "Knee Surgery",
+         osics_code %in% c("YKCR", "YKCM")) %>%
+  group_by(id) %>%
+  arrange(desc(injurydate), .by_group = TRUE) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(date_surgerytype = injurydate) %>%
+  select(id, surgerytype, date_surgerytype)
+
+# Other subgroup
+othersx <- injuryclean %>%
+  mutate(injurydate = dmy(injurydate)) %>%
+  filter(group == "Surgery",
+         surgerytype == "Other",
+         variable == "Knee Surgery") %>%
+  group_by(id) %>%
+  arrange(desc(injurydate), .by_group = TRUE) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(date_surgerytype = injurydate) %>%
+  select(id, surgerytype, date_surgerytype)
+
+# Data-frame of all surgery dates for surgical group
+sxdates <- bind_rows(aclsx, meniscalsx) %>%
+  bind_rows(., othersx) 
+
+# Individual participant fixes
+# 411 complete no pre-baseline (TP1) Proms, and also completed their proms over multiple days so timepoints don't join up. Have to manually tweal
+# only affects koos and spex.
+koos <- koos %>%
+  mutate(timepoint = case_when(UUID == "411" & timepoint == "TP1" ~ "T00", TRUE ~ timepoint))
+spex <- spex %>%
+  mutate(timepoint = case_when(UUID == "411" & timepoint == "TP1" ~ "T00", TRUE ~ timepoint))
+
+# 417 also did not complete a pre-baseline timepoint, however all have been allocated "TP1". Will also temporarily change lab to "TP1", so
+# they can all join together as one entry. Will then change to T00 once joined.
+lab <- lab %>%
+  mutate(timepoint = case_when(UUID == "417" & timepoint == "T00" ~ "TP1", TRUE ~ timepoint))
+
+## need to get unique timpoint.
+traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, kses, baselineq, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
+  bind_rows(., lab %>% filter(UUID %in% c("180", "216", "219", "330")) %>% mutate(Date.x = labtest_date)) %>% # these ids didn't complete proms at their lab test, so won't join in properly, have to manually add this timepoint
   left_join(demo, ., by = c("UUID", "labtest_date", "studyentry_date")) %>%
   rename(timepoint_date = Date.x, 
          id = UUID) %>% # better names
   select(!contains("Date.")) %>%
-  filter(!timepoint %in% c("TP2", "TP3", "TP4", "TP5", "TP6")) %>% # remove timepoints after study entry but before lab test (not needed).
-  arrange(id)
+  mutate(timepoint = case_when(id == "178" & timepoint == "TP2" ~ "T00", # need to use the TP2 apportioned timepoint ase the baseline (completed >4 weeks before test date)
+                               id == "417" & timepoint == "TP1" ~ "T00", # only on lot of baseline proms completed as study entry ~= lab test date. Adjusting to T00.
+                               TRUE ~ timepoint)) %>% # need to manually adjust 178 to use PROMS data 5 weeks prior to lab test as proms data
+  filter(!timepoint %in% c("TP2", "TP3", "TP4", "TP5", "TP6", "TP7", "TP8", "TP9", "TP10")) %>% # remove timepoints after study entry but before lab test (not needed) 
+  left_join(., sxdates, by = "id") %>%
+  select(id:group, surgerytype, date_surgerytype, everything()) %>%
+  arrange(id, factor(timepoint, levels = c("TP1", "T00", "T06", "T12", "T18", "T24", "T30", "T36", "T42", "T48", "T54", "T60"))) %>%
+  filter(!id %in% c("4444", "8888888", "0000005768"),
+         !is.na(id))
+
+monthlypain <- renamevariables("monthlypain") %>%
+  select(!ends_with("_x")) %>% # remove duplicated variables
+  left_join(., dob %>% select(UUID, group), by = "UUID") %>%
+  rename(id = UUID) %>%
+  select(id, group, everything()) %>%
+  arrange(id) %>%
+  filter(!id %in% c("4444", "0000005768"),
+         !is.na(id))
+
+
 
 # Write to csv
 #- write_csv(traildatabase, "data/processed/Trail Database v1 090322.csv")
 #- wriet_csv(injuryinfo, "data/processed/Trail Injury History v1 090322.csv")
 
 # Export
-sheets <- list("Database" = traildatabase, "Injury History" = injuryinfo) # list of different excel sheets
+openxlsx_setOp("dateFormat", value = "yyyy-mm-dd") # set date format for openxlsx to write in iso format
+sheets <- list("Database" = traildatabase, "Injury History" = injuryinfo, "Montly Pain" = monthlypain) # list of different excel sheets
 write.xlsx(sheets, "data/processed/Trail Data.xlsx", keepNA = TRUE, na.string = "NA") # write to xlsx file with 2 sheets.
 
 # need to look at training load - summary data
 
 # change names - Date to timepointdate?
 # UUID to id?
+# add ACL and ?meniscal field
+
+# Monthly pain
+
+
+  
+  
+  
