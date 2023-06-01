@@ -411,10 +411,12 @@ monthlypain <- renamevariables("monthlypain") %>%
 
 # Export
 openxlsx_setOp("dateFormat", value = "yyyy-mm-dd") # set date format for openxlsx to write in iso format
-sheets <- list("Database" = traildatabase, "Injury History" = injuryinfo, "Montly Pain" = monthlypain, "Pre-trail" = traildatabase_pre) # list of different excel sheets
+sheets <- list("Database" = traildatabase, "Injury History" = injuryinfo, "Montly Pain" = monthlypain, "Pre-Trail" = traildatabase_pre) # list of different excel sheets
 write.xlsx(sheets, "data/processed/Trail Database.xlsx", keepNA = TRUE, na.string = "NA") # write to xlsx file with 4 sheets.
 
-
+# Make file read only
+file_path <- "data/processed/Trail Database.xlsx"
+Sys.chmod(file_path, "444")
   
   
   

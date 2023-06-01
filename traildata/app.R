@@ -36,12 +36,15 @@ ui <- fluidPage(
                ),
         column(2,
                h4("Select Timepoints"),
-               checkboxGroupInput("timepoints", "", choices = c("Pre-Baseline (Recruitment)" = "TP1",
-                                                                "Baseline" = "T00", 
+               checkboxGroupInput("timepoints", "", choices = c("Baseline" = "T00", 
                                                                 "6 months" = "T06", 
                                                                 "12 months" = "T12", 
                                                                 "18 months" = "T18",
-                                                                "24 months" = "T24"),
+                                                                "24 months" = "T24",
+                                                                "30 months" = "T30",
+                                                                "36 months" = "T36",
+                                                                "42 months" = "T42",
+                                                                "48 months" = "T48"),
                                   selected = "T00")
         ),
         column(2, 
@@ -83,6 +86,10 @@ ui <- fluidPage(
                                                                        "Control" = "Control"),
                                   selected = c("Surgery", "Control"))
         ),
+        column(2,
+               h4("Pre-Trail Data"),
+               checkboxGroupInput("prebaseline", "First data instance, with extra participants", choices = c("Include" = "tp"))
+        ),
     ),
     sidebarLayout(
         sidebarPanel(style = "background-color:#ffeae8;",
@@ -120,6 +127,13 @@ server <- function(input, output) {
                           sheet = 3, na = "NA")
     })
     
+    predata <-  reactive({
+        req(input$file1) # wait until file uploaded
+        
+        readxl::read_xlsx(input$file1$datapath, 
+                          sheet = 4, na = "NA")
+    })
+    
     namesout <- reactive({
         varnamegroup %>%
             dplyr::filter(namegroup %in% c(input$proms, input$physical, input$other))
@@ -144,9 +158,17 @@ server <- function(input, output) {
             dplyr::filter(group %in% input$group)
     })
     
+    predataout <- reactive({
+        predata() %>%
+            dplyr::filter(group %in% input$group) %>%
+            dplyr::select(id, studyentry_date, labtest_date, dob, sex, group, surgerytype, date_surgerytype, age, knee_reference, dominantlimb, 
+                          timepoint, timepoint_date, any_of(namesout()$varname))
+        
+    })
+    
     # Add Data file if Data are selected in menu
     file1 <- reactive({
-        if(length(input$proms) > 0 | length(input$physical) > 0 | length(input$other) > 0) { c(paste(paste("Trail Data", Sys.Date(), sep = "_"), "csv", sep = ".")) }
+        if(length(input$timepoints) > 0 & (length(input$proms) > 0 | length(input$physical) > 0 | length(input$other) > 0)) { c(paste(paste("Trail Data", Sys.Date(), sep = "_"), "csv", sep = ".")) }
     })
     
     # Add Injury testing file if selected in menu
@@ -159,9 +181,13 @@ server <- function(input, output) {
         ifelse(match("monthlypain", input$other), c(paste(paste("Monthly Pain", Sys.Date(), sep = "_"), "csv", sep = ".")), c())
     })
     
+    file4 <- reactive({
+        ifelse(match("tp", input$prebaseline), c(paste(paste("Pre-Trail", Sys.Date(), sep = "_"), "csv", sep = ".")), c())
+    })
+    
     # Create list of which files to download
     files <- reactive({
-        c(file1(), file2(), file3())
+        c(file1(), file2(), file3(), file4())
     })
     
     output$zipdownload = downloadHandler(
@@ -176,6 +202,7 @@ server <- function(input, output) {
             write_csv(dataout(), paste(paste("Trail Data", Sys.Date(), sep = "_"), "csv", sep = "."))
             write_csv(injuryout(), paste(paste("Injury Information", Sys.Date(), sep = "_"), "csv", sep = "."))
             write_csv(monthlypainout(), paste(paste("Monthly Pain", Sys.Date(), sep = "_"), "csv", sep = "."))
+            write_csv(predataout(), paste(paste("Pre-Trail", Sys.Date(), sep = "_"), "csv", sep = "."))
             
             # Zip them up
             zip(file, files())
