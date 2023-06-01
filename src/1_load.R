@@ -45,7 +45,7 @@ library(neon)
 # Pull Data from Fusion/Smartabase
 
 koos <- pull_smartabase(
-  form = "2. Knee Injury Outcome Score (KOOS)",
+  form = "3. Knee Injury Outcome Score (KOOS)",
   start_date = "01/06/2020",
   end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
 
@@ -55,7 +55,7 @@ tampa <- pull_smartabase(
   end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
 
 spex <- pull_smartabase(
-  form = "3. The medical examination sports injury surveillance questionnaire (SPEX)",
+  form = "4. The medical examination sports injury surveillance questionnaire (SPEX)",
   start_date = "01/06/2020",
   end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
 
@@ -85,7 +85,7 @@ baselineq <- pull_smartabase(
   end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
 
 assq <- pull_smartabase(
-  form = "4. Sleep Survery (ASSQ)",
+  form = "5. Sleep Survery (ASSQ)",
   start_date = "01/06/2020",
   end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
 
@@ -93,11 +93,6 @@ visaa <- pull_smartabase(
   form = "9. Achilles questionnaire (VISA-A)",
   start_date = "01/06/2020",
   end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
-
-monthlypain <- pull_smartabase(
-  form = "Monthly Pain Questions",
-  start_date = "01/06/2020",
-  end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
-
+  
 
 

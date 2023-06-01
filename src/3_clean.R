@@ -58,6 +58,28 @@ lab <- lab %>% select(!c(labtest_date, sex, group, knee_reference, height, weigh
 lab <- traildates("lab") 
 
 
+####
+# Trail baseline
+baselineq <- renamevariables("baselineq") %>%
+  select(c(-Hidden_Shoes, -Hidden_Shoes_Type)) %>% # remove duplicated and blank variables
+  mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
+                  knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
+                  shoe_type, shoe_factors, supports), # select variables which are bracketed by "[]"
+                ~str_extract(.x, "(?<=\\[).*(?=\\])"))) %>% # extract string from within the brackets
+  mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
+                  knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
+                  shoe_type, shoe_factors, supports), # select the same variables again
+                na_if, "")) %>% # if extracted string is blank label as NA
+  mutate(across(c(l_swelling, r_swelling, l_stiffness, r_stiffness, l_crepitus, r_crepitus, xray_oa, mri_oa),
+                ~case_when(
+                  .x == "No" ~ 0, # change to numeric values
+                  .x == "Yes" ~ 1,
+                ))) %>%
+  mutate(kneepain_running = ifelse(kneepain_running == "0 - No Pain", 0, kneepain_running)) %>% # change 0 value to numeric
+  select(!c(sex, height, weight)) # remove duplicate variables from other questionnaires.
+baselineq <- traildates("baselineq")
+
+
 # KOOS
 # note koos_A6 question is missing - was not entered into smartabase initially
 koos <- renamevariables("koos") %>% # run rename variable function
@@ -181,26 +203,6 @@ visaa <- renamevariables("visaa") %>%
     visaa_8c == "NIL" ~ 0
   )) 
 visaa <- traildates("visaa")
-
-# Trail baseline
-baselineq <- renamevariables("baselineq") %>%
-  select(c(-Hidden_Shoes, -Hidden_Shoes_Type)) %>% # remove duplicated and blank variables
-  mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
-                  knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
-                  shoe_type, shoe_factors, supports), # select variables which are bracketed by "[]"
-                ~str_extract(.x, "(?<=\\[).*(?=\\])"))) %>% # extract string from within the brackets
-  mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
-                  knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
-                  shoe_type, shoe_factors, supports), # select the same variables again
-                na_if, "")) %>% # if extracted string is blank label as NA
-  mutate(across(c(l_swelling, r_swelling, l_stiffness, r_stiffness, l_crepitus, r_crepitus, xray_oa, mri_oa),
-                ~case_when(
-                  .x == "No" ~ 0, # change to numeric values
-                  .x == "Yes" ~ 1,
-                ))) %>%
-  mutate(kneepain_running = ifelse(kneepain_running == "0 - No Pain", 0, kneepain_running)) %>% # change 0 value to numeric
-  select(!c(sex, height, weight)) # remove duplicate variables from other questionnaires.
-baselineq <- traildates("baselineq")
 
 # phone Screening / Injury Data - Will sit as separate data frame
 phonescreen <- phonescreen %>%
@@ -349,7 +351,52 @@ spex <- spex %>%
 lab <- lab %>%
   mutate(timepoint = case_when(UUID == "417" & timepoint == "T00" ~ "TP1", TRUE ~ timepoint))
 
-## need to get unique timpoint.
+
+#####
+## Pre-trail data
+
+# Function to extract the first data instance and join together as pre-baseline timepoint.
+predatafunction <- function(x){
+ x %>% 
+    group_by(UUID) %>%
+    arrange(Date) %>%
+    slice(1) %>%
+    ungroup() %>%
+    mutate(timepoint = "TP1")
+}
+
+# Data for the Pre-trail timepoint (including all including if not in trail proper)
+traildatabase_pre <- list(koos, spex, assq, tampa, pass, visaa, kses, baselineq) %>% 
+  map(~predatafunction(.x)) %>% # apply above function to all data parts
+  reduce(., left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
+  left_join(demo, ., by = c("UUID", "labtest_date", "studyentry_date")) %>%
+  rename(timepoint_date = Date.x, 
+         id = UUID) %>% # better names
+  select(!contains("Date.")) %>%
+  left_join(., sxdates, by = "id") %>%
+  select(id:group, surgerytype, date_surgerytype, everything()) %>%
+  arrange(id) %>%
+  filter(!id %in% c("4444", "8888888", "0000005768"),
+         !is.na(id))
+
+
+
+## real trail data
+traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, kses, baselineq, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
+  bind_rows(., lab %>% filter(UUID %in% c("330")) %>% mutate(Date.x = labtest_date)) %>% # this id didn't complete proms at their lab test, so won't join in properly, have to manually add this timepoint
+  left_join(demo, ., by = c("UUID", "labtest_date", "studyentry_date")) %>%
+  rename(timepoint_date = Date.x, 
+         id = UUID) %>% # better names
+  select(!contains("Date.")) %>%
+  filter(!timepoint %in% c("TP1", "TP2", "TP3", "TP4", "TP5", "TP6", "TP7", "TP8", "TP9", "TP10")) %>% # remove timepoints after study entry but before lab test (not needed) 
+  left_join(., sxdates, by = "id") %>%
+  select(id:group, surgerytype, date_surgerytype, everything()) %>%
+  arrange(id, factor(timepoint, levels = c("T00", "T06", "T12", "T18", "T24", "T30", "T36", "T42", "T48", "T54", "T60"))) %>%
+  filter(!id %in% c("4444", "8888888", "0000005768"),
+         !is.na(id))
+
+### Old Code 
+## need to get unique timepoint.
 traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, kses, baselineq, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
   bind_rows(., lab %>% filter(UUID %in% c("180", "216", "219", "330")) %>% mutate(Date.x = labtest_date)) %>% # these ids didn't complete proms at their lab test, so won't join in properly, have to manually add this timepoint
   left_join(demo, ., by = c("UUID", "labtest_date", "studyentry_date")) %>%
@@ -376,23 +423,14 @@ monthlypain <- renamevariables("monthlypain") %>%
          !is.na(id))
 
 
-
 # Write to csv
 #- write_csv(traildatabase, "data/processed/Trail Database v1 090322.csv")
-#- wriet_csv(injuryinfo, "data/processed/Trail Injury History v1 090322.csv")
+#- write_csv(injuryinfo, "data/processed/Trail Injury History v1 090322.csv")
 
 # Export
 openxlsx_setOp("dateFormat", value = "yyyy-mm-dd") # set date format for openxlsx to write in iso format
-sheets <- list("Database" = traildatabase, "Injury History" = injuryinfo, "Montly Pain" = monthlypain) # list of different excel sheets
-write.xlsx(sheets, "data/processed/Trail Data.xlsx", keepNA = TRUE, na.string = "NA") # write to xlsx file with 2 sheets.
-
-# need to look at training load - summary data
-
-# change names - Date to timepointdate?
-# UUID to id?
-# add ACL and ?meniscal field
-
-# Monthly pain
+sheets <- list("Database" = traildatabase, "Injury History" = injuryinfo, "Montly Pain" = monthlypain, "Pre-trail" = traildatabase_pre) # list of different excel sheets
+write.xlsx(sheets, "data/processed/Trail Database.xlsx", keepNA = TRUE, na.string = "NA") # write to xlsx file with 4 sheets.
 
 
   
