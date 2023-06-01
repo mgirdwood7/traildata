@@ -341,15 +341,15 @@ sxdates <- bind_rows(aclsx, meniscalsx) %>%
 # Individual participant fixes
 # 411 complete no pre-baseline (TP1) Proms, and also completed their proms over multiple days so timepoints don't join up. Have to manually tweal
 # only affects koos and spex.
-koos <- koos %>%
-  mutate(timepoint = case_when(UUID == "411" & timepoint == "TP1" ~ "T00", TRUE ~ timepoint))
-spex <- spex %>%
-  mutate(timepoint = case_when(UUID == "411" & timepoint == "TP1" ~ "T00", TRUE ~ timepoint))
+# koos <- koos %>%
+#  mutate(timepoint = case_when(UUID == "411" & timepoint == "TP1" ~ "T00", TRUE ~ timepoint))
+# spex <- spex %>%
+#  mutate(timepoint = case_when(UUID == "411" & timepoint == "TP1" ~ "T00", TRUE ~ timepoint))
 
 # 417 also did not complete a pre-baseline timepoint, however all have been allocated "TP1". Will also temporarily change lab to "TP1", so
 # they can all join together as one entry. Will then change to T00 once joined.
-lab <- lab %>%
-  mutate(timepoint = case_when(UUID == "417" & timepoint == "T00" ~ "TP1", TRUE ~ timepoint))
+# lab <- lab %>%
+#  mutate(timepoint = case_when(UUID == "417" & timepoint == "T00" ~ "TP1", TRUE ~ timepoint))
 
 
 #####
@@ -380,7 +380,6 @@ traildatabase_pre <- list(koos, spex, assq, tampa, pass, visaa, kses, baselineq)
          !is.na(id))
 
 
-
 ## real trail data
 traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, kses, baselineq, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
   bind_rows(., lab %>% filter(UUID %in% c("330")) %>% mutate(Date.x = labtest_date)) %>% # this id didn't complete proms at their lab test, so won't join in properly, have to manually add this timepoint
@@ -393,25 +392,8 @@ traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, kses, baselin
   select(id:group, surgerytype, date_surgerytype, everything()) %>%
   arrange(id, factor(timepoint, levels = c("T00", "T06", "T12", "T18", "T24", "T30", "T36", "T42", "T48", "T54", "T60"))) %>%
   filter(!id %in% c("4444", "8888888", "0000005768"),
-         !is.na(id))
-
-### Old Code 
-## need to get unique timepoint.
-traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, kses, baselineq, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
-  bind_rows(., lab %>% filter(UUID %in% c("180", "216", "219", "330")) %>% mutate(Date.x = labtest_date)) %>% # these ids didn't complete proms at their lab test, so won't join in properly, have to manually add this timepoint
-  left_join(demo, ., by = c("UUID", "labtest_date", "studyentry_date")) %>%
-  rename(timepoint_date = Date.x, 
-         id = UUID) %>% # better names
-  select(!contains("Date.")) %>%
-  mutate(timepoint = case_when(id == "178" & timepoint == "TP2" ~ "T00", # need to use the TP2 apportioned timepoint ase the baseline (completed >4 weeks before test date)
-                               id == "417" & timepoint == "TP1" ~ "T00", # only on lot of baseline proms completed as study entry ~= lab test date. Adjusting to T00.
-                               TRUE ~ timepoint)) %>% # need to manually adjust 178 to use PROMS data 5 weeks prior to lab test as proms data
-  filter(!timepoint %in% c("TP2", "TP3", "TP4", "TP5", "TP6", "TP7", "TP8", "TP9", "TP10")) %>% # remove timepoints after study entry but before lab test (not needed) 
-  left_join(., sxdates, by = "id") %>%
-  select(id:group, surgerytype, date_surgerytype, everything()) %>%
-  arrange(id, factor(timepoint, levels = c("TP1", "T00", "T06", "T12", "T18", "T24", "T30", "T36", "T42", "T48", "T54", "T60"))) %>%
-  filter(!id %in% c("4444", "8888888", "0000005768"),
-         !is.na(id))
+         !is.na(id),
+         !is.na(labtest_date))
 
 monthlypain <- renamevariables("monthlypain") %>%
   select(!ends_with("_x")) %>% # remove duplicated variables

@@ -93,6 +93,11 @@ visaa <- pull_smartabase(
   form = "9. Achilles questionnaire (VISA-A)",
   start_date = "01/06/2020",
   end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
+
+monthlypain <- pull_smartabase(
+  form = "2. Monthly Pain Questions",
+  start_date = "01/06/2020",
+  end_date = as.character(format(as.Date(Sys.Date()), "%d/%m/%Y")))
   
 
 
