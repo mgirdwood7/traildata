@@ -144,7 +144,7 @@ server <- function(input, output) {
             dplyr::filter(timepoint %in% input$timepoints) %>%
             dplyr::filter(group %in% input$group) %>%
             dplyr::select(id, studyentry_date, labtest_date, dob, sex, group, surgerytype, date_surgerytype, age, knee_reference, dominantlimb, 
-                          timepoint, timepoint_date, any_of(namesout()$varname))
+                          height, weight, timepoint, timepoint_date, any_of(namesout()$varname))
         
     })
     

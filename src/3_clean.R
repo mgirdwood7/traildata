@@ -44,7 +44,9 @@ trailid <- baselineq %>%
   distinct(UUID, .keep_all = TRUE)
 
 # create id dataframe with baseline date.
-id <- left_join(trailid, baselinedates, by = c("UUID")) # join together, NA for those not yet completed lab testing
+id <- left_join(trailid, baselinedates, by = c("UUID")) %>% # join together, NA for those not yet completed lab testing
+  filter(!UUID %in% c("4444", "8888888", "0000005768"),
+         !is.na(UUID))
 
 # create demographic info dataframe
 demo <- lab %>%
@@ -55,21 +57,23 @@ demo <- lab %>%
          age = trunc((dob %--% studyentry_date) / years(1))) # recalcualte age field from study entry date
 
 lab <- lab %>% select(!c(labtest_date, sex, group, knee_reference, height, weight, dominantlimb)) # remove variables saved separately in demographic df.
-lab <- traildates("lab") 
+lab <- traildates("lab") %>%
+  filter(!is.na(labtest_date)) %>%
+  mutate(timepoint = "T00")
 
 
 ####
 # Trail baseline
 baselineq <- renamevariables("baselineq") %>%
   select(c(-Hidden_Shoes, -Hidden_Shoes_Type)) %>% # remove duplicated and blank variables
-  mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
+  mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11, koabeliefs_12, koabeliefs_13, 
                   knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
                   shoe_type, shoe_factors, supports), # select variables which are bracketed by "[]"
                 ~str_extract(.x, "(?<=\\[).*(?=\\])"))) %>% # extract string from within the brackets
-  mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11:koabeliefs_13, 
+  mutate(across(c(employment, koabeliefs_8, koabeliefs_9, koabeliefs_11, koabeliefs_12, koabeliefs_13, 
                   knee_medication, women_cycle_change, women_contraception_reason, shoe_brand, 
                   shoe_type, shoe_factors, supports), # select the same variables again
-                na_if, "")) %>% # if extracted string is blank label as NA
+                ~na_if(.x, ""))) %>% # if extracted string is blank label as NA
   mutate(across(c(l_swelling, r_swelling, l_stiffness, r_stiffness, l_crepitus, r_crepitus, xray_oa, mri_oa),
                 ~case_when(
                   .x == "No" ~ 0, # change to numeric values
@@ -77,7 +81,8 @@ baselineq <- renamevariables("baselineq") %>%
                 ))) %>%
   mutate(kneepain_running = ifelse(kneepain_running == "0 - No Pain", 0, kneepain_running)) %>% # change 0 value to numeric
   select(!c(sex, height, weight)) # remove duplicate variables from other questionnaires.
-baselineq <- traildates("baselineq")
+baselineq <- traildates("baselineq") %>%
+  select(UUID:mri_oa, koabeliefs_1:koabeliefs_3, koabeliefs_4, koabeliefs_5:koabeliefs_11, koabeliefs_12, koabeliefs_13, everything())
 
 
 # KOOS
@@ -217,6 +222,9 @@ phonescreen <- renamevariables("phonescreen") %>%
   select(-running_device_other) %>% # remove "other" variable as now combined.
   select(Date, UUID, contains("kneesurgery"), contains("llsurgery"), contains("kneeinjury"), otherinjury_hx, contains("llinjury"))
 
+idlist <- id
+
+
 # Separate data frames out into each type of info - knee surgery, knee injury, llinjury
 kneesurgery <- phonescreen %>%
   select(Date, UUID, starts_with("kneesurgery")) %>%
@@ -252,7 +260,8 @@ injuryinfo <- bind_rows(kneesurgery, kneeinjury) %>%
   select(id, group, everything()) %>%
   arrange(id, variable, injury_id) %>%
   filter(!id %in% c("4444", "88818", "0006"), 
-         !is.na(id))
+         !is.na(id)) %>%
+  filter(id %in% c(idlist$UUID))
 
 
 # Clean injury data to get type of surgery, and date of surgery
@@ -278,7 +287,7 @@ injuryclean <- injuryinfo %>%
     TRUE ~ NA_real_
   ),
   meniscal = case_when(
-    osics_code %in% c("YKCR", "YKCM", "YKCX") ~ 1,
+    osics_code %in% c("YKCR", "YKCM") ~ 1,
     TRUE ~ NA_real_)) %>%
   group_by(id) %>% # now fill down and up again 
   fill(aclr, .direction = "downup") %>%
@@ -291,7 +300,9 @@ injuryclean <- injuryinfo %>%
     group == "Control" ~ NA_character_,
     TRUE ~ "Other"
   )) %>%
-  select(!c(aclrinjury, aclr, meniscal))
+  select(!c(aclrinjury, aclr, meniscal)) %>%
+  filter(id %in% c(idlist$UUID))
+  
 
 # ACLR subgroup
 aclsx <- injuryclean %>%
@@ -307,7 +318,7 @@ aclsx <- injuryclean %>%
   mutate(date_surgerytype = injurydate) %>%
   select(id, surgerytype, date_surgerytype)
 
-# Meniscal subgroup
+# Meniscal/Cartilage subgroup
 meniscalsx <- injuryclean %>%
   mutate(injurydate = dmy(injurydate)) %>%
   filter(group == "Surgery",

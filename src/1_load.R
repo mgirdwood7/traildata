@@ -1,25 +1,6 @@
-### Check interstate groups (separate)
-## Imaging and bloods date needed in fusion
-## Imaging time from DICOM
-
-# Withdrawals smartabase
-
-# Dashboard?
-
-# Goose
-# - 6-monthly dashboard
-# - 4 yr imaging dashboard
-# add imaging/boods in fusion
-# talk to MK about training for Fusion
-# - Monthly injury, 1 reminder only
-# - Chorus/Strava connection
-
-## Training load
-# - snapshot of whether gathering data ? 2-3 month
-
 # Load
 
-library(tidyverse)
+library(tidyverse) 
 library(lubridate)
 library(readxl)
 library(openxlsx)

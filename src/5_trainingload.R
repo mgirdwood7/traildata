@@ -6,7 +6,7 @@ fusion_id <- read_csv("data/processed/fusion_ids.csv")
 
 # retrieve last date 
 last_date <- data$start_date %>% tail(1) %>% as.Date
-last_date <- as.Date("2021-01-01")
+last_date <- as.Date("2020-07-01")
 
 # Create sequence of months needed to download
 # minus one month to go to last complete month
@@ -191,5 +191,82 @@ csvdatalist <- csvdatalist %>% bind_rows()
 newcsv <- bind_rows(originaldata, csvdatalist)
 
 write_csv(csvdatalist, "data/processed/training_load/healthkit_activity.csv")
+
+
+
+
+### Activity only:
+
+
+########
+## Garmin ###
+########
+
+# Create empty list
+csvdatalist <- list()
+
+# Loop to download garmin daily summary 
+for  (i in start_dates) {
+  
+  # format dates properly
+  i <- as.Date(i, origin = "1970-01-01")
+  end_date <- ceiling_date(ymd(i), "month") - days(1) # get end date of month
+  
+  start <- as.character(format(as.Date(i), "%d/%m/%Y"))
+  end <- as.character(format(as.Date(end_date), "%d/%m/%Y"))
+  
+  # pull data through API
+  garminactivity <- pull_smartabase(
+    form = "Garmin Activity Summary",
+    start_date = start,
+    end_date = end) %>%
+    inner_join(., fusion_id, by = "user_id") %>% # join trail ids
+    select(id, everything(), -c(about, UUID)) # remove name column and duplicated UUID column
+
+  # remove nested granular data sample column and write to csv
+  csvdata <- garminactivity %>%
+    select(-Samples)
+  csvdatalist[[start]] <- csvdata # add each download as a list element
+  
+}
+
+# bind together lists into one data frame
+csvdatalist <- csvdatalist %>% bind_rows() 
+
+newcsv <- bind_rows(originaldata, csvdatalist)
+
+write_csv(csvdatalist, "data/processed/training_load/garmin_activity_5.csv")
+
+
+#### Apple Health
+
+
+csvdatalist <- list()
+
+# Loop to download garmin daily summary 
+for  (i in start_dates) {
+  
+  # format dates properly
+  i <- as.Date(i, origin = "1970-01-01")
+  end_date <- ceiling_date(ymd(i), "month") - days(1) # get end date of month
+  start <- as.character(format(as.Date(i), "%d/%m/%Y"))
+  end <- as.character(format(as.Date(end_date), "%d/%m/%Y"))
+  
+  # pull data through API
+  healthkit <- pull_smartabase(
+    form = "HealthKit Activity",
+    start_date = start,
+    end_date = end) %>%
+    inner_join(., fusion_id, by = "user_id") %>% # join trail ids
+    select(id, everything(), -c(about)) # remove name column and duplicated UUID column
+  
+  # add each download as a list element
+  csvdatalist[[start]] <- healthkit %>% select(-any_of("CSV"))
+  
+}
+
+csvdatalist2 <- csvdatalist %>% data.table::rbindlist(fill = TRUE)
+
+write_csv(csvdatalist2, "data/processed/training_load/Apple Daily Summary2.csv")
 
 
