@@ -6,6 +6,7 @@
 /data/processed/*.csv
 /data/processed/*.xlsx
 /data/processed/training_load/*
+/data/raw/*.csv
 /src/misc/*
 /src/neon_login.R
 /*.csv
