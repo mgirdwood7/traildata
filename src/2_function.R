@@ -34,7 +34,7 @@ traildates <- function(data) {
       difftime(Date, labtest_date, units = "weeks") > 125 & difftime(Date, labtest_date, units = "weeks") < 140 ~ "T30",
       difftime(Date, labtest_date, units = "weeks") > 151 & difftime(Date, labtest_date, units = "weeks") < 166 ~ "T36",
       difftime(Date, labtest_date, units = "weeks") > 177 & difftime(Date, labtest_date, units = "weeks") < 192 ~ "T42",
-      difftime(Date, labtest_date, units = "weeks") > 203 & difftime(Date, labtest_date, units = "weeks") < 218 ~ "T48"
+      difftime(Date, labtest_date, units = "weeks") > 195 & difftime(Date, labtest_date, units = "weeks") < 234 ~ "T48" # for 4 year timepoint, bigger lee-way (-13 weeks, +26 weeks (3 months-6 months))
       )) %>%
     ungroup() %>%
     arrange(timepoint, Date) %>% # arranging and grouping to allocate sequential number to pre-baseline timepoints

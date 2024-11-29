@@ -6,9 +6,12 @@
 /data/processed/*.csv
 /data/processed/*.xlsx
 /data/processed/training_load/*
+/src/misc/*
 /src/neon_login.R
 /*.csv
+/*.png
 /misc
+/misc/*
 
 
 # Session Data files

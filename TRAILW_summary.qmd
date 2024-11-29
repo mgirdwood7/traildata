@@ -1,0 +1,198 @@
+---
+title: "TRAIL-W Snapshot"
+format:
+  html:
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, error = FALSE)
+
+black <- "#000000"
+orange <- "#E69F00"
+lightblue <- "#56B4E9"
+green <- "#009E73"
+yellow <- "#F0E442"
+blue <- "#0072B2"
+red <- "#D55E00"
+pink <- "#CC79A7"
+
+library(tidyverse)
+library(kableExtra)
+
+data <- read_csv("data/processed/trailw_prelim.csv")
+
+## Quarto
+```
+
+
+## Summary
+
+152 respondents
+84 women, 68 men
+
+```{r}
+table(data$group, data$sex_birth) %>% kbl()
+
+table(data$group, data$gender)  %>% kbl()
+
+fct_count(data$relationship)  %>% kbl()
+
+fct_count(data$relationship_sex)  %>% kbl()
+
+```
+
+
+## Running behaviours
+
+These are all percentages
+
+### Women:
+```{r}
+
+data %>%
+  filter(sex_birth == "Female") %>%
+  select(run_alone, run_withother, run_withgroup, run_toilet, run_safety) %>%
+  pivot_longer(everything()) %>%
+  mutate(name = factor(name, levels = unique(name))) %>%
+  group_by(name) %>%
+  summarise(fct_count(value, prop = TRUE)) %>%
+  mutate(p = round(p*100, 0)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = f, values_from = p, values_fill = 0) %>%
+  select(name, Never, Sometimes, Always)  %>% kbl()
+```
+
+### Men:
+```{r}
+
+data %>%
+  filter(sex_birth == "Male") %>%
+  select(run_alone, run_withother, run_withgroup, run_toilet, run_safety) %>%
+  pivot_longer(everything()) %>%
+  mutate(name = factor(name, levels = unique(name))) %>%
+  group_by(name) %>%
+  summarise(fct_count(value, prop = TRUE)) %>%
+  mutate(p = round(p*100, 0)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = f, values_from = p, values_fill = 0) %>%
+  select(name, Never, Sometimes, Always) %>% kbl()
+
+```
+
+## Women's health
+
+Women only included here. These are n (not percentage)
+
+### Menopause
+```{r}
+
+data %>% 
+  filter(sex_birth == "Female") %>%
+  select(menopause, perimenopausal) %>%
+  mutate(across(c(menopause, perimenopausal), ~case_match(.x, 
+                                                          0 ~ "No", 
+                                                          1 ~ "Yes", 
+                                                          2 ~ "Unsure"))) %>%
+  pivot_longer(everything()) %>%
+  mutate(name = factor(name, levels = unique(name))) %>%
+  count(name, value) %>%
+  pivot_wider(names_from = name, values_from = n, values_fill = 0) %>% kbl()
+
+
+```
+
+### Menstrual symptoms affecting running
+```{r}
+
+data %>% 
+  filter(sex_birth == "Female") %>%
+  select(menstrual_symptoms_perform, menstrual_symptoms_run) %>%
+  mutate(across(c(menstrual_symptoms_perform, menstrual_symptoms_run), ~case_match(.x, 
+                                                                                                0 ~ "Never",
+                                                                                                1 ~ "Sometimes",
+                                                                                                2 ~ "Always"))) %>%
+  pivot_longer(everything()) %>%
+  mutate(name = factor(name, levels = unique(name))) %>%
+  count(name, value) %>%
+  pivot_wider(names_from = name, values_from = n, values_fill = 0) %>% kbl()
+
+
+```
+
+```{r}
+
+data %>%
+  filter(sex_birth == "Female") %>% 
+  select(c(starts_with("fmed"))) %>% select(-c(fmed_none, fmed_notsure)) %>%
+  colSums(, na.rm = TRUE) %>% kbl()
+
+```
+
+
+## Urinary symptoms
+
+```{r}
+
+data %>%
+  filter(sex_birth == "Female") %>% 
+  select(c(freq_urin, u_urgency, leak_urgency, vagina_bulge, fecal_leakage, pain_bladder, pain_bowel, pain_vagina, pain_uterus, passing_urine, empty_bowel)) %>%
+  colSums(, na.rm = TRUE) %>% kbl()
+
+```
+## Breast 
+
+```{r}
+
+data %>%
+  filter(sex_birth == "Female") %>% 
+  select(c(breast_1a, breast_1b, breast_1c)) %>%
+  mutate(across(everything(), ~factor(.x, levels = c(0,1,2,3,4), labels = c("Never",
+                                                     "Rarely", 
+                                                     "Sometimes",
+                                                     "Frequently",
+                                                     "All the time")))) %>%
+  pivot_longer(everything()) %>%
+  count(name, value) %>%
+  pivot_wider(names_from = name, values_from = n, values_fill = 0) %>% kbl()
+  
+
+```
+
+## LEAF
+```{r}
+
+data %>%
+  filter(sex_birth == "Female") %>% 
+  summarise(leaf8orhigher = sum(leaf_total >7),
+            n = length(leaf_total)) %>% kbl()
+```
+
+
+## Questionnaire totals
+
+Men and women included here
+
+```{r}
+data %>%
+  select(pcs_total, phq_total, gad_total, edeq_total) %>%
+  psych::describe() %>% kbl()
+```
+
+Split by group and sex
+
+```{r}
+library(ggbeeswarm)
+library(mgfunctions)
+
+data %>%
+  select(group, sex_birth, pcs_total, phq_total, gad_total, edeq_total) %>%
+  pivot_longer(-c(group, sex_birth)) %>%
+  ggplot(., aes(x = group, y = value, colour = sex_birth)) +
+  geom_violin(aes(fill = sex_birth), alpha = 0.3, outliers = FALSE, position = position_dodge(width = 1), colour = NA) +
+
+  geom_jitter(position = position_jitterdodge(dodge.width = 1, jitter.width = 0.1), alpha = 0.7) +
+    geom_boxplot(aes(group = interaction(group, sex_birth)), outliers = FALSE, width = 0.3, position = position_dodge(width = 1), colour = "black", fill = NA) +
+  facet_wrap(~name, scales = "free") +
+  theme_mgpub()
+```

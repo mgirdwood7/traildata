@@ -45,7 +45,7 @@ trailid <- baselineq %>%
 
 # create id dataframe with baseline date.
 id <- left_join(trailid, baselinedates, by = c("UUID")) %>% # join together, NA for those not yet completed lab testing
-  filter(!UUID %in% c("4444", "8888888", "0000005768"),
+  filter(!UUID %in% c("198", "4444", "8888888", "0000005768"),
          !is.na(UUID))
 
 # create demographic info dataframe
@@ -80,7 +80,7 @@ baselineq <- renamevariables("baselineq") %>%
                   .x == "Yes" ~ 1,
                 ))) %>%
   mutate(kneepain_running = ifelse(kneepain_running == "0 - No Pain", 0, kneepain_running)) %>% # change 0 value to numeric
-  select(!c(sex, height, weight)) # remove duplicate variables from other questionnaires.
+  select(!c(sex)) # remove duplicate variables from other questionnaires. Height/weight are kept in as _selfreport
 baselineq <- traildates("baselineq") %>%
   select(UUID:mri_oa, koabeliefs_1:koabeliefs_3, koabeliefs_4, koabeliefs_5:koabeliefs_11, koabeliefs_12, koabeliefs_13, everything())
 
@@ -386,23 +386,33 @@ traildatabase_pre <- list(koos, spex, assq, tampa, pass, visaa, kses, baselineq)
   select(!contains("Date.")) %>%
   left_join(., sxdates, by = "id") %>%
   select(id:group, surgerytype, date_surgerytype, everything()) %>%
+  select(id:weight, height_selfreport, weight_selfreport, everything()) %>% # add in the self-report height/weight vars alongside normal height/weight (from lab test)
+  mutate(height_selfreport = height_selfreport * 100) %>%
   arrange(id) %>%
-  filter(!id %in% c("4444", "8888888", "0000005768"),
+  filter(!id %in% c("198", "4444", "8888888", "0000005768", "141"),
          !is.na(id))
 
+# Baseline questionnaire completed at different times.
+# Need to filter only those who completed lab, and then manually change timepoint to T00 to include in database
+baselineq_included <- baselineq %>%
+  filter(UUID %in% lab$UUID) %>%
+  mutate(timepoint = "T00") %>%
+  select(-Date)
 
 ## real trail data
-traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, kses, baselineq, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
+traildatabase <- reduce(list(koos, spex, assq, tampa, pass, visaa, kses, baselineq_included, lab), left_join, by = c("UUID", "timepoint", "studyentry_date", "labtest_date")) %>%
   bind_rows(., lab %>% filter(UUID %in% c("330")) %>% mutate(Date.x = labtest_date)) %>% # this id didn't complete proms at their lab test, so won't join in properly, have to manually add this timepoint
   left_join(demo, ., by = c("UUID", "labtest_date", "studyentry_date")) %>%
   rename(timepoint_date = Date.x, 
          id = UUID) %>% # better names
   select(!contains("Date.")) %>%
+  select(-Date) %>%
+  select(-c(height_selfreport, weight_selfreport)) %>% # remove the self-report variables from full database.
   filter(!timepoint %in% c("TP1", "TP2", "TP3", "TP4", "TP5", "TP6", "TP7", "TP8", "TP9", "TP10")) %>% # remove timepoints after study entry but before lab test (not needed) 
   left_join(., sxdates, by = "id") %>%
   select(id:group, surgerytype, date_surgerytype, everything()) %>%
   arrange(id, factor(timepoint, levels = c("T00", "T06", "T12", "T18", "T24", "T30", "T36", "T42", "T48", "T54", "T60"))) %>%
-  filter(!id %in% c("4444", "8888888", "0000005768"),
+  filter(!id %in% c("198", "4444", "8888888", "0000005768"),
          !is.na(id),
          !is.na(labtest_date))
 
@@ -412,8 +422,9 @@ monthlypain <- renamevariables("monthlypain") %>%
   rename(id = UUID) %>%
   select(id, group, everything()) %>%
   arrange(id) %>%
-  filter(!id %in% c("4444", "0000005768"),
-         !is.na(id))
+  filter(!id %in% c("4444", "0000005768", "141"),
+         !is.na(id),
+         id %in% traildatabase$id)
 
 
 # Write to csv
